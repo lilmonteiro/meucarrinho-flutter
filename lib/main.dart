@@ -90,8 +90,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 });
                 Navigator.of(context).pop();
               }
-              final db = FirebaseFirestore.instance;
-              await db.collection('products').add(product.toJson());
+              // final db = FirebaseFirestore.instance;
+              // await db.collection('products').add(product.toJson());
+              _saveProducts();
             },
             child: const Text('Adicionar'),
           ),
@@ -142,6 +143,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   product.name = name;
                   product.quantity = quantity;
                 });
+                _saveProducts();
                 Navigator.of(context).pop();
               }
             },
@@ -156,6 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       products.remove(product);
     });
+    _saveProducts();
   }
 
   _saveProducts() async {
@@ -176,6 +179,12 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       products = decodedList ?? products;
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
   }
 
   @override
