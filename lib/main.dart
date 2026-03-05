@@ -9,6 +9,9 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
   runApp(const MyApp());
 }
 
@@ -71,7 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               final name = nameController.text;
               final quantity = int.tryParse(quantityController.text) ?? 1;
 
@@ -84,10 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-    ).then((_) {
-      nameController.dispose();
-      quantityController.dispose();
-    });
+    );
   }
 
   _editProduct(Product product) {
@@ -136,36 +136,29 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-    ).then((_){
-      nameController.dispose();
-      quantityController.dispose();
-    });
+    );
   }
 
-  _deleteProduct(Product product) async {
-    await FirebaseFirestore.instance
-        .collection('products')
-        .doc(product.id)
-        .delete();
+  _deleteProduct(Product product) {
+    FirebaseFirestore.instance.collection('products').doc(product.id).delete();
   }
 
-  _saveProduct(String name, int quantity) async {
+  _saveProduct(String name, int quantity) {
     final product = Product(
       id: '',
       name: name,
       quantity: quantity,
       isChecked: false,
     );
-    await FirebaseFirestore.instance
-        .collection('products')
-        .add(product.toJson());
+
+    FirebaseFirestore.instance.collection('products').add(product.toJson());
   }
 
-  _updateProduct(Product product, String name, int quantity) async {
-    await FirebaseFirestore.instance
-        .collection('products')
-        .doc(product.id)
-        .update({'name': name, 'quantity': quantity});
+  _updateProduct(Product product, String name, int quantity) {
+    FirebaseFirestore.instance.collection('products').doc(product.id).update({
+      'name': name,
+      'quantity': quantity,
+    });
   }
 
   @override
@@ -182,6 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -243,7 +237,7 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'],
+      id: '',
       name: json['name'],
       quantity: json['quantity'],
       isChecked: json['isChecked'],
