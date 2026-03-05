@@ -1,13 +1,15 @@
-// ignore_for_file: unused_import
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'services/product_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
+import 'models/product.dart';
+import 'widgets/list_item.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
@@ -42,6 +44,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   List<Product> products = [];
+  final _productService = ProductService();
 
   _addProduct() {
     final nameController = TextEditingController();
@@ -79,7 +82,7 @@ class _MyHomePageState extends State<MyHomePage> {
               final quantity = int.tryParse(quantityController.text) ?? 1;
 
               if (name.isNotEmpty) {
-                _saveProduct(name, quantity);
+                _productService.addProduct(name, quantity);
                 Navigator.of(context).pop();
               }
             },
@@ -128,7 +131,7 @@ class _MyHomePageState extends State<MyHomePage> {
               final quantity = int.tryParse(quantityController.text) ?? 1;
 
               if (name.isNotEmpty) {
-                _updateProduct(product, name, quantity);
+                _productService.updateProduct(product, name, quantity);
                 Navigator.of(context).pop();
               }
             },
@@ -139,41 +142,17 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  _deleteProduct(Product product) {
-    FirebaseFirestore.instance.collection('products').doc(product.id).delete();
-  }
-
-  _saveProduct(String name, int quantity) {
-    final product = Product(
-      id: '',
-      name: name,
-      quantity: quantity,
-      isChecked: false,
-    );
-
-    FirebaseFirestore.instance.collection('products').add(product.toJson());
-  }
-
-  _updateProduct(Product product, String name, int quantity) {
-    FirebaseFirestore.instance.collection('products').doc(product.id).update({
-      'name': name,
-      'quantity': quantity,
-    });
-  }
-
   @override
   void initState() {
     super.initState();
 
-    FirebaseFirestore.instance.collection('products').snapshots().listen((
-      snapshot,
-    ) {
-      setState(() {
-        products = snapshot.docs
-            .map((doc) => Product.fromJson(doc.data())..id = doc.id)
-            .toList();
+    _productService
+      .getProducts()
+      .listen((productList) {
+        setState(() {
+          products = productList;
+        });
       });
-    });
   }
 
   @override
@@ -203,7 +182,8 @@ class _MyHomePageState extends State<MyHomePage> {
             .map(
               (product) => ListItem(
                 product: product,
-                onDelete: () => _deleteProduct(product),
+                onCheck: () => _productService.checkProduct(product),
+                onDelete: () => _productService.deleteProduct(product),
                 onEdit: () => _editProduct(product),
               ),
             )
@@ -218,95 +198,3 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class Product {
-  String id;
-  String name;
-  int quantity;
-  bool isChecked;
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.quantity,
-    required this.isChecked,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {'name': name, 'quantity': quantity, 'isChecked': isChecked};
-  }
-
-  factory Product.fromJson(Map<String, dynamic> json) {
-    return Product(
-      id: '',
-      name: json['name'],
-      quantity: json['quantity'],
-      isChecked: json['isChecked'],
-    );
-  }
-}
-
-class ListItem extends StatefulWidget {
-  final Product product;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-
-  const ListItem({
-    super.key,
-    required this.product,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  @override
-  State<ListItem> createState() => _ListItemState();
-}
-
-class _ListItemState extends State<ListItem> {
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: () => widget.onEdit(),
-      leading: Checkbox(
-        value: widget.product.isChecked,
-        onChanged: (value) {
-          setState(() {
-            widget.product.isChecked = value ?? false;
-          });
-        },
-      ),
-      title: Text(
-        widget.product.name,
-        style: TextStyle(
-          decoration: widget.product.isChecked
-              ? TextDecoration.lineThrough
-              : TextDecoration.none,
-          decorationColor: Theme.of(context).colorScheme.outlineVariant,
-          color: widget.product.isChecked
-              ? Theme.of(context).colorScheme.outlineVariant
-              : Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      subtitle: Text(
-        '${widget.product.quantity} und',
-        style: TextStyle(
-          color: widget.product.isChecked
-              ? Theme.of(context).colorScheme.outlineVariant
-              : Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      trailing: IconButton(
-        style: ButtonStyle(
-          iconColor: widget.product.isChecked
-              ? WidgetStateProperty.all(
-                  Theme.of(context).colorScheme.outlineVariant,
-                )
-              : WidgetStateProperty.all(Colors.black),
-        ),
-        icon: const Icon(Icons.delete),
-        onPressed: () {
-          widget.onDelete();
-        },
-      ),
-    );
-  }
-}
