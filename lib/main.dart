@@ -38,11 +38,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  List<Product> products = [
-    Product(name: 'Alface', quantity: 1, isChecked: false),
-    Product(name: 'Maionese', quantity: 2, isChecked: false),
-    Product(name: 'Papel Higienico', quantity: 2, isChecked: false),
-  ];
+  List<Product> products = [];
 
   _addProduct() {
     final nameController = TextEditingController();
@@ -78,27 +74,20 @@ class _MyHomePageState extends State<MyHomePage> {
             onPressed: () async {
               final name = nameController.text;
               final quantity = int.tryParse(quantityController.text) ?? 1;
-              final product = Product(
-                name: name,
-                quantity: quantity,
-                isChecked: false,
-              );
 
               if (name.isNotEmpty) {
-                setState(() {
-                  products.add(product);
-                });
+                _saveProduct(name, quantity);
                 Navigator.of(context).pop();
               }
-              // final db = FirebaseFirestore.instance;
-              // await db.collection('products').add(product.toJson());
-              _saveProducts();
             },
             child: const Text('Adicionar'),
           ),
         ],
       ),
-    );
+    ).then((_) {
+      nameController.dispose();
+      quantityController.dispose();
+    });
   }
 
   _editProduct(Product product) {
@@ -139,11 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
               final quantity = int.tryParse(quantityController.text) ?? 1;
 
               if (name.isNotEmpty) {
-                setState(() {
-                  product.name = name;
-                  product.quantity = quantity;
-                });
-                _saveProducts();
+                _updateProduct(product, name, quantity);
                 Navigator.of(context).pop();
               }
             },
@@ -151,42 +136,52 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
+    ).then((_){
+      nameController.dispose();
+      quantityController.dispose();
+    });
+  }
+
+  _deleteProduct(Product product) async {
+    await FirebaseFirestore.instance
+        .collection('products')
+        .doc(product.id)
+        .delete();
+  }
+
+  _saveProduct(String name, int quantity) async {
+    final product = Product(
+      id: '',
+      name: name,
+      quantity: quantity,
+      isChecked: false,
     );
+    await FirebaseFirestore.instance
+        .collection('products')
+        .add(product.toJson());
   }
 
-  _deleteProduct(Product product) {
-    setState(() {
-      products.remove(product);
-    });
-    _saveProducts();
-  }
-
-  _saveProducts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final json = products.map((p) => jsonEncode(p.toJson())).toList();
-
-    prefs.setStringList('products', json);
-  }
-
-  _loadProducts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encodedList = prefs.getStringList('products');
-
-    final decodedList = encodedList
-        ?.map((p) => Product.fromJson(jsonDecode(p)))
-        .toList();
-
-    setState(() {
-      products = decodedList ?? products;
-    });
+  _updateProduct(Product product, String name, int quantity) async {
+    await FirebaseFirestore.instance
+        .collection('products')
+        .doc(product.id)
+        .update({'name': name, 'quantity': quantity});
   }
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-  }
 
+    FirebaseFirestore.instance.collection('products').snapshots().listen((
+      snapshot,
+    ) {
+      setState(() {
+        products = snapshot.docs
+            .map((doc) => Product.fromJson(doc.data())..id = doc.id)
+            .toList();
+      });
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -230,11 +225,13 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class Product {
+  String id;
   String name;
   int quantity;
   bool isChecked;
 
   Product({
+    required this.id,
     required this.name,
     required this.quantity,
     required this.isChecked,
@@ -246,6 +243,7 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
+      id: json['id'],
       name: json['name'],
       quantity: json['quantity'],
       isChecked: json['isChecked'],
